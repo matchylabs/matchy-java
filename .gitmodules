@@ -1,0 +1,3 @@
+[submodule "native/matchy"]
+	path = native/matchy
+	url = https://github.com/matchylabs/matchy.git
