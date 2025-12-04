@@ -10,9 +10,9 @@ import com.sun.jna.Pointer;
  * This interface declares native methods that map directly to functions
  * in matchy.h. JNA handles the marshalling between Java and C.
  * 
- * Package-private - not exposed to users.
+ * <p><b>Internal API - not for public use.</b></p>
  */
-interface MatchyLibrary extends Library {
+public interface MatchyLibrary extends Library {
     
     // Singleton instance - loads library on first access
     MatchyLibrary INSTANCE = loadLibrary();

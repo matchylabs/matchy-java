@@ -10,15 +10,16 @@ import java.util.List;
  * JNA structure mappings for matchy C API.
  * 
  * These structures match the layout of C structs defined in matchy.h.
- * Package-private - not exposed to users.
+ * 
+ * <p><b>Internal API - not for public use.</b></p>
  */
-class NativeStructs {
+public class NativeStructs {
     
     /**
      * Maps to matchy_result_t in C.
      */
     @Structure.FieldOrder({"found", "prefix_len", "_data_cache", "_db_ref"})
-    static class MatchyResult extends Structure {
+    public static class MatchyResult extends Structure {
         public boolean found;
         public byte prefix_len;
         public Pointer _data_cache;
@@ -29,7 +30,7 @@ class NativeStructs {
      * Maps to matchy_open_options_t in C.
      */
     @Structure.FieldOrder({"cache_capacity", "auto_reload", "reload_callback", "reload_callback_user_data"})
-    static class MatchyOpenOptions extends Structure {
+    public static class MatchyOpenOptions extends Structure {
         public int cache_capacity;
         public boolean auto_reload;
         public Pointer reload_callback;  // Function pointer (not used in initial version)
@@ -47,7 +48,7 @@ class NativeStructs {
         "total_queries", "queries_with_match", "queries_without_match",
         "cache_hits", "cache_misses", "ip_queries", "string_queries"
     })
-    static class MatchyStats extends Structure {
+    public static class MatchyStats extends Structure {
         public long total_queries;
         public long queries_with_match;
         public long queries_without_match;
