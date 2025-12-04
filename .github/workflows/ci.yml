@@ -122,6 +122,14 @@ jobs:
           echo "Native libraries organized:"
           find java/src/main/resources/native -type f
 
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: java
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Setting version to $VERSION"
+          mvn -B versions:set -DnewVersion="$VERSION"
+
       - name: Build fat JAR (skip native build, skip tests)
         working-directory: java
         run: mvn -B package -DskipTests -Dexec.skip=true
