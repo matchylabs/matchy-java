@@ -41,22 +41,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build native library
-        working-directory: native/matchy
-        run: cargo build --release --lib
-
-      - name: Set native library path
-        run: |
-          echo "LD_LIBRARY_PATH=$PWD/native/matchy/target/release:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
-          echo "DYLD_LIBRARY_PATH=$PWD/native/matchy/target/release:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
-
       - name: Build with Maven
         working-directory: java
-        run: mvn -B compile -Djna.library.path=../native/matchy/target/release
+        run: mvn -B compile
 
       - name: Run tests
         working-directory: java
-        run: mvn -B test -Djna.library.path=../native/matchy/target/release
+        run: mvn -B test
 
   build-windows:
     name: Build & Test (Windows, Java ${{ matrix.java }})
@@ -82,17 +73,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build native library
-        working-directory: native/matchy
-        run: cargo build --release --lib
-
       - name: Build with Maven
         working-directory: java
-        run: mvn -B compile -Djna.library.path=../native/matchy/target/release
+        run: mvn -B compile
 
       - name: Run tests
         working-directory: java
-        run: mvn -B test -Djna.library.path=../native/matchy/target/release
+        run: mvn -B test
 
   lint:
     name: Lint
