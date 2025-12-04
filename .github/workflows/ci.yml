@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build & Test (${{ matrix.os }}, Java ${{ matrix.java }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [namespace-profile-linux-amd64, namespace-profile-linux-arm64, namespace-profile-macos-26-1]
+        java: ['11', '17', '21']
+
+    steps:
+      - name: Checkout (Namespace)
+        uses: namespacelabs/nscloud-checkout-action@v8
+        with:
+          submodules: recursive
+
+      - name: Set up Maven and Rust cache
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: |
+            maven
+            rust
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build native library
+        working-directory: native/matchy
+        run: cargo build --release --lib
+
+      - name: Set native library path
+        run: |
+          echo "LD_LIBRARY_PATH=$PWD/native/matchy/target/release:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "DYLD_LIBRARY_PATH=$PWD/native/matchy/target/release:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      - name: Build with Maven
+        working-directory: java
+        run: mvn -B compile -Djna.library.path=../native/matchy/target/release
+
+      - name: Run tests
+        working-directory: java
+        run: mvn -B test -Djna.library.path=../native/matchy/target/release
+
+  build-windows:
+    name: Build & Test (Windows, Java ${{ matrix.java }})
+    runs-on: namespace-profile-windows-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['11', '17', '21']
+
+    steps:
+      - name: Checkout (Windows)
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+          cache: 'maven'  # Use GitHub Actions cache on Windows
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build native library
+        working-directory: native/matchy
+        run: cargo build --release --lib
+
+      - name: Build with Maven
+        working-directory: java
+        run: mvn -B compile -Djna.library.path=../native/matchy/target/release
+
+      - name: Run tests
+        working-directory: java
+        run: mvn -B test -Djna.library.path=../native/matchy/target/release
+
+  lint:
+    name: Lint
+    runs-on: namespace-profile-linux-amd64
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@v8
+
+      - name: Set up Maven cache
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: maven
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Check code formatting
+        working-directory: java
+        run: mvn -B checkstyle:check || true  # Non-blocking for now
