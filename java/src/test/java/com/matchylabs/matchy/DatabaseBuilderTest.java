@@ -56,6 +56,7 @@ class DatabaseBuilderTest {
             
             Path dbPath = tempDir.resolve("test_json.mxy");
             builder.save(dbPath);
+            System.out.println("Save completed");
             
             // Verify database was created
             assertTrue(Files.exists(dbPath));
@@ -74,6 +75,7 @@ class DatabaseBuilderTest {
                    .setDescription("This is a test database");
             
             builder.save(dbPath);
+            System.out.println("Save completed");
         }
         
         // Open and verify it works
@@ -88,13 +90,20 @@ class DatabaseBuilderTest {
      */
     @Test
     void testSave() throws Exception {
+        System.out.println("=== testSave DEBUG ===");
         Path dbPath = tempDir.resolve("test_save.mxy");
+        System.out.println("tempDir: " + tempDir.toAbsolutePath());
+        System.out.println("dbPath: " + dbPath.toAbsolutePath());
         
         try (DatabaseBuilder builder = new DatabaseBuilder()) {
             builder.add("8.8.8.8", Map.of("service", "dns"));
+            System.out.println("About to save...");
             builder.save(dbPath);
+            System.out.println("Save completed");
         }
         
+        System.out.println("After builder closed, file exists: " + Files.exists(dbPath));
+        if (Files.exists(dbPath)) System.out.println("File size: " + Files.size(dbPath));
         // Verify file exists and is non-empty
         assertTrue(Files.exists(dbPath));
         assertTrue(Files.size(dbPath) > 0);
@@ -102,6 +111,7 @@ class DatabaseBuilderTest {
         // Verify we can open it
         try (Database db = Database.open(dbPath)) {
             QueryResult result = db.query("8.8.8.8");
+            System.out.println("Query 8.8.8.8: isMatch=" + result.isMatch() + ", data=" + result.getData());
             assertTrue(result.isMatch());
         }
     }
@@ -186,16 +196,24 @@ class DatabaseBuilderTest {
      */
     @Test
     void testEmptyDatabase() throws Exception {
+        System.out.println("=== testEmptyDatabase DEBUG ===");
         Path dbPath = tempDir.resolve("empty.mxy");
+        System.out.println("tempDir: " + tempDir.toAbsolutePath());
+        System.out.println("dbPath: " + dbPath.toAbsolutePath());
         
         try (DatabaseBuilder builder = new DatabaseBuilder()) {
             // Don't add any entries
+            System.out.println("Saving empty database...");
             builder.save(dbPath);
+            System.out.println("Save completed");
         }
         
+        System.out.println("After builder closed, file exists: " + Files.exists(dbPath));
+        if (Files.exists(dbPath)) System.out.println("File size: " + Files.size(dbPath));
         // Should be able to open (but queries won't match anything)
         try (Database db = Database.open(dbPath)) {
             QueryResult result = db.query("1.1.1.1");
+            System.out.println("Query 1.1.1.1: isMatch=" + result.isMatch() + ", data=" + result.getData());
             assertFalse(result.isMatch());
         }
     }
