@@ -46,6 +46,8 @@
         <!-- Native library paths -->
         <native.matchy.dir>${project.basedir}/../native/matchy</native.matchy.dir>
         <native.target.dir>${native.matchy.dir}/target/release</native.target.dir>
+        <!-- Platform detection (overridden by profiles) -->
+        <native.platform>unknown</native.platform>
     </properties>
 
     <dependencies>
@@ -105,6 +107,35 @@
                                 <argument>--release</argument>
                                 <argument>--lib</argument>
                             </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Copy native library to resources for JAR bundling -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-native-library</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/native/${native.platform}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${native.target.dir}</directory>
+                                    <includes>
+                                        <include>libmatchy.so</include>
+                                        <include>libmatchy.dylib</include>
+                                        <include>matchy.dll</include>
+                                    </includes>
+                                </resource>
+                            </resources>
                         </configuration>
                     </execution>
                 </executions>
@@ -207,6 +238,70 @@
     </distributionManagement>
 
     <profiles>
+        <!-- Platform detection profiles -->
+        <profile>
+            <id>linux-x86_64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.platform>linux-x86-64</native.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>linux-aarch64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.platform>linux-aarch64</native.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>macos-x86_64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.platform>darwin-x86-64</native.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>macos-aarch64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.platform>darwin-aarch64</native.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>windows-x86_64</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.platform>win32-x86-64</native.platform>
+            </properties>
+        </profile>
+
         <profile>
             <id>release</id>
             <build>
