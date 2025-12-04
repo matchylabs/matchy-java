@@ -20,7 +20,14 @@ jobs:
         java: ['11', '17', '21']
 
     steps:
-      - name: Checkout
+      - name: Checkout (Windows)
+        if: contains(matrix.os, 'windows')
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Checkout (non-Windows)
+        if: ${{ !contains(matrix.os, 'windows') }}
         uses: namespacelabs/nscloud-checkout-action@v8
         with:
           submodules: recursive
