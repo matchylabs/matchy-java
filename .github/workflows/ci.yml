@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -59,6 +60,139 @@ jobs:
         working-directory: java
         shell: bash
         run: mvn -B test
+
+  # Build native libraries for release (only on Java 11 to avoid duplicates)
+  build-native:
+    name: Build Native (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: namespace-profile-linux-amd64
+            platform: linux-x86-64
+            lib: libmatchy.so
+          - os: namespace-profile-linux-arm64
+            platform: linux-aarch64
+            lib: libmatchy.so
+          - os: namespace-profile-macos-26-1
+            platform: darwin-aarch64
+            lib: libmatchy.dylib
+          - os: namespace-profile-windows-amd64
+            platform: win32-x86-64
+            lib: matchy.dll
+
+    steps:
+      - name: Checkout (Windows)
+        if: contains(matrix.os, 'windows')
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Checkout (non-Windows)
+        if: ${{ !contains(matrix.os, 'windows') }}
+        uses: namespacelabs/nscloud-checkout-action@v8
+        with:
+          submodules: recursive
+
+      - name: Set up Rust cache (non-Windows)
+        if: ${{ !contains(matrix.os, 'windows') }}
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build native library
+        working-directory: native/matchy
+        shell: bash
+        run: cargo build --release --lib
+
+      - name: Upload native library
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.platform }}
+          path: native/matchy/target/release/${{ matrix.lib }}
+          retention-days: 1
+
+  # Assemble fat JAR with all native libraries
+  package:
+    name: Package Fat JAR
+    needs: [build, build-native]
+    runs-on: namespace-profile-linux-amd64
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@v8
+        with:
+          submodules: recursive
+
+      - name: Set up Maven cache
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: maven
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v4
+        with:
+          path: native-libs
+          pattern: native-*
+
+      - name: Organize native libraries
+        shell: bash
+        run: |
+          mkdir -p java/src/main/resources/native/linux-x86-64
+          mkdir -p java/src/main/resources/native/linux-aarch64
+          mkdir -p java/src/main/resources/native/darwin-aarch64
+          mkdir -p java/src/main/resources/native/win32-x86-64
+          
+          cp native-libs/native-linux-x86-64/libmatchy.so java/src/main/resources/native/linux-x86-64/
+          cp native-libs/native-linux-aarch64/libmatchy.so java/src/main/resources/native/linux-aarch64/
+          cp native-libs/native-darwin-aarch64/libmatchy.dylib java/src/main/resources/native/darwin-aarch64/
+          cp native-libs/native-win32-x86-64/matchy.dll java/src/main/resources/native/win32-x86-64/
+          
+          echo "Native libraries organized:"
+          find java/src/main/resources/native -type f
+
+      - name: Build fat JAR (skip native build, skip tests)
+        working-directory: java
+        run: mvn -B package -DskipTests -Dexec.skip=true
+
+      - name: Upload fat JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: matchy-java-fat-jar
+          path: |
+            java/target/matchy-java-*.jar
+            !java/target/matchy-java-*-sources.jar
+            !java/target/matchy-java-*-javadoc.jar
+          retention-days: 30
+
+  # Create GitHub release on tags
+  release:
+    name: Create Release
+    needs: [package]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: namespace-profile-linux-amd64
+    permissions:
+      contents: write
+    steps:
+      - name: Download fat JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: matchy-java-fat-jar
+          path: release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*.jar
+          generate_release_notes: true
 
   lint:
     name: Lint

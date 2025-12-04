@@ -4,7 +4,7 @@ Java wrapper for [matchy](https://github.com/matchylabs/matchy) - fast IoC match
 
 ## Status
 
-🚧 **Work in Progress** - Initial JNA bindings and core wrapper classes implemented.
+✅ **Core functionality complete** - Ready for use. Fat JAR releases coming soon.
 
 ## Structure
 
@@ -14,7 +14,8 @@ matchy-java/
 │   ├── pom.xml
 │   └── src/main/java/com/matchylabs/matchy/
 │       ├── jna/            # JNA bindings (package-private)
-│       ├── Database.java   # Main API (coming soon)
+│       ├── Database.java   # Main API for querying databases
+│       ├── DatabaseBuilder.java  # Build databases programmatically
 │       ├── QueryResult.java
 │       ├── DatabaseStats.java
 │       └── OpenOptions.java
@@ -26,16 +27,16 @@ matchy-java/
 
 - ✅ JNA bindings (NativeLoader, MatchyLibrary, NativeStructs)
 - ✅ Core wrapper classes (QueryResult, DatabaseStats, OpenOptions)
+- ✅ Database class (open, query, close, stats)
+- ✅ DatabaseBuilder class (create databases programmatically)
 - ✅ Exception handling (MatchyException)
-- ✅ Maven project structure
+- ✅ Unit tests
+- ✅ GitHub Actions CI/CD (multi-platform, Java 11/17/21)
 
 ## TODO
 
-- [ ] Database class (open, query, close)
-- [ ] DatabaseBuilder class
-- [ ] Unit tests
+- [ ] Fat JAR releases with bundled native libraries
 - [ ] Processing API (Worker, FileReader)
-- [ ] GitHub Actions CI/CD
 - [ ] Documentation and examples
 - [ ] Maven Central deployment
 
