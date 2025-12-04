@@ -75,10 +75,12 @@ jobs:
 
       - name: Build with Maven
         working-directory: java
+        shell: bash
         run: mvn -B compile
 
       - name: Run tests
         working-directory: java
+        shell: bash
         run: mvn -B test
 
   lint:
