@@ -236,3 +236,46 @@ class DatabaseBuilderTest {
         });
     }
 }
+
+    /**
+     * Test that multiple builders don't interfere with each other.
+     */
+    @Test
+    void testMultipleBuilders() throws Exception {
+        System.out.println("=== testMultipleBuilders DEBUG ===");
+        
+        Path db1Path = tempDir.resolve("db1.mxy");
+        Path db2Path = tempDir.resolve("db2.mxy");
+        
+        // Create first database with one entry
+        try (DatabaseBuilder builder1 = new DatabaseBuilder()) {
+            builder1.add("1.1.1.1", Map.of("name", "first"));
+            builder1.save(db1Path);
+        }
+        
+        // Create second database with different entry  
+        try (DatabaseBuilder builder2 = new DatabaseBuilder()) {
+            builder2.add("2.2.2.2", Map.of("name", "second"));
+            builder2.save(db2Path);
+        }
+        
+        // Verify first database only has first entry
+        try (Database db1 = Database.open(db1Path)) {
+            QueryResult r1 = db1.query("1.1.1.1");
+            QueryResult r2 = db1.query("2.2.2.2");
+            System.out.println("DB1 query 1.1.1.1: isMatch=" + r1.isMatch() + ", data=" + r1.getData());
+            System.out.println("DB1 query 2.2.2.2: isMatch=" + r2.isMatch() + ", data=" + r2.getData());
+            assertTrue(r1.isMatch(), "DB1 should match 1.1.1.1");
+            assertFalse(r2.isMatch(), "DB1 should NOT match 2.2.2.2");
+        }
+        
+        // Verify second database only has second entry
+        try (Database db2 = Database.open(db2Path)) {
+            QueryResult r1 = db2.query("1.1.1.1");
+            QueryResult r2 = db2.query("2.2.2.2");
+            System.out.println("DB2 query 1.1.1.1: isMatch=" + r1.isMatch() + ", data=" + r1.getData());
+            System.out.println("DB2 query 2.2.2.2: isMatch=" + r2.isMatch() + ", data=" + r2.getData());
+            assertFalse(r1.isMatch(), "DB2 should NOT match 1.1.1.1");
+            assertTrue(r2.isMatch(), "DB2 should match 2.2.2.2");
+        }
+    }
