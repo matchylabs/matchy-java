@@ -16,16 +16,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [namespace-profile-linux-amd64, namespace-profile-linux-arm64, namespace-profile-macos-26-1]
+        os: [namespace-profile-linux-amd64, namespace-profile-linux-arm64, namespace-profile-macos-26-1, namespace-profile-windows-amd64]
         java: ['11', '17', '21']
 
     steps:
-      - name: Checkout (Namespace)
+      - name: Checkout
         uses: namespacelabs/nscloud-checkout-action@v8
         with:
           submodules: recursive
 
-      - name: Set up Maven and Rust cache
+      - name: Set up Maven and Rust cache (non-Windows)
+        if: ${{ !contains(matrix.os, 'windows') }}
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: |
@@ -37,38 +38,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build with Maven
-        working-directory: java
-        run: mvn -B compile
-
-      - name: Run tests
-        working-directory: java
-        run: mvn -B test
-
-  build-windows:
-    name: Build & Test (Windows, Java ${{ matrix.java }})
-    runs-on: namespace-profile-windows-amd64
-    strategy:
-      fail-fast: false
-      matrix:
-        java: ['11', '17', '21']
-
-    steps:
-      - name: Checkout (Windows)
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - name: Set up JDK ${{ matrix.java }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: ${{ matrix.java }}
-          cache: 'maven'  # Use GitHub Actions cache on Windows
+          cache: ${{ contains(matrix.os, 'windows') && 'maven' || '' }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
