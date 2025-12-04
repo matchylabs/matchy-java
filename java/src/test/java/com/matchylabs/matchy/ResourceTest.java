@@ -16,18 +16,12 @@ public class ResourceTest {
         String libraryFileName = mapLibraryName("matchy");
         String resourcePath = "/native/" + platform + "/" + libraryFileName;
         
-        System.out.println("Platform: " + platform);
-        System.out.println("Looking for: " + resourcePath);
-        
         // Try to load the resource
         InputStream is = ResourceTest.class.getResourceAsStream(resourcePath);
         if (is != null) {
-            System.out.println("FOUND resource in JAR!");
             try { is.close(); } catch (Exception e) {}
-        } else {
-            // Resource not in JAR is fine - library may be loaded from jna.library.path
-            System.out.println("Resource not in JAR (will use jna.library.path)");
         }
+        // Resource not in JAR is fine - library may be loaded from jna.library.path
         
         // This test just verifies platform detection works
         assertNotNull(platform);

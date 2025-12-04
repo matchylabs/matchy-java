@@ -1,6 +1,5 @@
 package com.matchylabs.matchy;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -12,12 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for DatabaseBuilder class.
- * 
- * TODO: These tests are disabled due to JNA binding issues with the builder API.
- * The native library crashes when called from JNA. This needs investigation into:
- * - Structure alignment between Java and C
- * - Pointer handling for builder operations
- * - Memory management for built databases
  */
 class DatabaseBuilderTest {
     
@@ -56,7 +49,6 @@ class DatabaseBuilderTest {
             
             Path dbPath = tempDir.resolve("test_json.mxy");
             builder.save(dbPath);
-            System.out.println("Save completed");
             
             // Verify database was created
             assertTrue(Files.exists(dbPath));
@@ -75,7 +67,6 @@ class DatabaseBuilderTest {
                    .setDescription("This is a test database");
             
             builder.save(dbPath);
-            System.out.println("Save completed");
         }
         
         // Open and verify it works
@@ -90,20 +81,13 @@ class DatabaseBuilderTest {
      */
     @Test
     void testSave() throws Exception {
-        System.out.println("=== testSave DEBUG ===");
         Path dbPath = tempDir.resolve("test_save.mxy");
-        System.out.println("tempDir: " + tempDir.toAbsolutePath());
-        System.out.println("dbPath: " + dbPath.toAbsolutePath());
         
         try (DatabaseBuilder builder = new DatabaseBuilder()) {
             builder.add("8.8.8.8", Map.of("service", "dns"));
-            System.out.println("About to save...");
             builder.save(dbPath);
-            System.out.println("Save completed");
         }
         
-        System.out.println("After builder closed, file exists: " + Files.exists(dbPath));
-        if (Files.exists(dbPath)) System.out.println("File size: " + Files.size(dbPath));
         // Verify file exists and is non-empty
         assertTrue(Files.exists(dbPath));
         assertTrue(Files.size(dbPath) > 0);
@@ -111,7 +95,6 @@ class DatabaseBuilderTest {
         // Verify we can open it
         try (Database db = Database.open(dbPath)) {
             QueryResult result = db.query("8.8.8.8");
-            System.out.println("Query 8.8.8.8: isMatch=" + result.isMatch() + ", data=" + result.getData());
             assertTrue(result.isMatch());
         }
     }
@@ -196,24 +179,16 @@ class DatabaseBuilderTest {
      */
     @Test
     void testEmptyDatabase() throws Exception {
-        System.out.println("=== testEmptyDatabase DEBUG ===");
         Path dbPath = tempDir.resolve("empty.mxy");
-        System.out.println("tempDir: " + tempDir.toAbsolutePath());
-        System.out.println("dbPath: " + dbPath.toAbsolutePath());
         
         try (DatabaseBuilder builder = new DatabaseBuilder()) {
             // Don't add any entries
-            System.out.println("Saving empty database...");
             builder.save(dbPath);
-            System.out.println("Save completed");
         }
         
-        System.out.println("After builder closed, file exists: " + Files.exists(dbPath));
-        if (Files.exists(dbPath)) System.out.println("File size: " + Files.size(dbPath));
         // Should be able to open (but queries won't match anything)
         try (Database db = Database.open(dbPath)) {
             QueryResult result = db.query("1.1.1.1");
-            System.out.println("Query 1.1.1.1: isMatch=" + result.isMatch() + ", data=" + result.getData());
             assertFalse(result.isMatch());
         }
     }
@@ -235,15 +210,12 @@ class DatabaseBuilderTest {
             }
         });
     }
-}
-
+    
     /**
      * Test that multiple builders don't interfere with each other.
      */
     @Test
     void testMultipleBuilders() throws Exception {
-        System.out.println("=== testMultipleBuilders DEBUG ===");
-        
         Path db1Path = tempDir.resolve("db1.mxy");
         Path db2Path = tempDir.resolve("db2.mxy");
         
@@ -261,21 +233,14 @@ class DatabaseBuilderTest {
         
         // Verify first database only has first entry
         try (Database db1 = Database.open(db1Path)) {
-            QueryResult r1 = db1.query("1.1.1.1");
-            QueryResult r2 = db1.query("2.2.2.2");
-            System.out.println("DB1 query 1.1.1.1: isMatch=" + r1.isMatch() + ", data=" + r1.getData());
-            System.out.println("DB1 query 2.2.2.2: isMatch=" + r2.isMatch() + ", data=" + r2.getData());
-            assertTrue(r1.isMatch(), "DB1 should match 1.1.1.1");
-            assertFalse(r2.isMatch(), "DB1 should NOT match 2.2.2.2");
+            assertTrue(db1.query("1.1.1.1").isMatch(), "DB1 should match 1.1.1.1");
+            assertFalse(db1.query("2.2.2.2").isMatch(), "DB1 should NOT match 2.2.2.2");
         }
         
         // Verify second database only has second entry
         try (Database db2 = Database.open(db2Path)) {
-            QueryResult r1 = db2.query("1.1.1.1");
-            QueryResult r2 = db2.query("2.2.2.2");
-            System.out.println("DB2 query 1.1.1.1: isMatch=" + r1.isMatch() + ", data=" + r1.getData());
-            System.out.println("DB2 query 2.2.2.2: isMatch=" + r2.isMatch() + ", data=" + r2.getData());
-            assertFalse(r1.isMatch(), "DB2 should NOT match 1.1.1.1");
-            assertTrue(r2.isMatch(), "DB2 should match 2.2.2.2");
+            assertFalse(db2.query("1.1.1.1").isMatch(), "DB2 should NOT match 1.1.1.1");
+            assertTrue(db2.query("2.2.2.2").isMatch(), "DB2 should match 2.2.2.2");
         }
     }
+}
