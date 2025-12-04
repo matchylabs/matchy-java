@@ -1,0 +1,213 @@
+package com.matchylabs.matchy;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Unit tests for DatabaseBuilder class.
+ */
+class DatabaseBuilderTest {
+    
+    @TempDir
+    Path tempDir;
+    
+    /**
+     * Test adding various entry types.
+     */
+    @Test
+    void testAddEntries() throws Exception {
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            // Add IP address
+            builder.add("1.2.3.4", Map.of("type", "ip"));
+            
+            // Add CIDR range
+            builder.add("10.0.0.0/8", Map.of("type", "cidr"));
+            
+            // Add glob pattern
+            builder.add("*.example.com", Map.of("type", "glob"));
+            
+            // Add literal string
+            builder.add("literal.example.com", Map.of("type", "literal"));
+            
+            assertFalse(builder.isClosed());
+        }
+    }
+    
+    /**
+     * Test adding entries with JSON strings.
+     */
+    @Test
+    void testAddJson() throws Exception {
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.addJson("1.1.1.1", "{\"name\":\"cloudflare\",\"speed\":\"fast\"}");
+            
+            Path dbPath = tempDir.resolve("test_json.mxy");
+            builder.save(dbPath);
+            
+            // Verify database was created
+            assertTrue(Files.exists(dbPath));
+        }
+    }
+    
+    /**
+     * Test setting description.
+     */
+    @Test
+    void testDescription() throws Exception {
+        Path dbPath = tempDir.resolve("test_desc.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("1.2.3.4", Map.of("test", "value"))
+                   .setDescription("This is a test database");
+            
+            builder.save(dbPath);
+        }
+        
+        // Open and verify it works
+        try (Database db = Database.open(dbPath)) {
+            QueryResult result = db.query("1.2.3.4");
+            assertTrue(result.isMatch());
+        }
+    }
+    
+    /**
+     * Test saving to file.
+     */
+    @Test
+    void testSave() throws Exception {
+        Path dbPath = tempDir.resolve("test_save.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("8.8.8.8", Map.of("service", "dns"));
+            builder.save(dbPath);
+        }
+        
+        // Verify file exists and is non-empty
+        assertTrue(Files.exists(dbPath));
+        assertTrue(Files.size(dbPath) > 0);
+        
+        // Verify we can open it
+        try (Database db = Database.open(dbPath)) {
+            QueryResult result = db.query("8.8.8.8");
+            assertTrue(result.isMatch());
+        }
+    }
+    
+    /**
+     * Test building in memory.
+     */
+    @Test
+    void testBuildInMemory() throws Exception {
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("192.168.1.1", Map.of("location", "internal"));
+            
+            // Build to bytes
+            byte[] bytes = builder.toBytes();
+            assertNotNull(bytes);
+            assertTrue(bytes.length > 0);
+            
+            // Create database from bytes
+            try (Database db = Database.fromBuffer(bytes)) {
+                QueryResult result = db.query("192.168.1.1");
+                assertTrue(result.isMatch());
+            }
+        }
+    }
+    
+    /**
+     * Test build() convenience method.
+     */
+    @Test
+    void testBuildConvenience() throws Exception {
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("10.20.30.40", Map.of("test", "data"));
+            
+            try (Database db = builder.build()) {
+                QueryResult result = db.query("10.20.30.40");
+                assertTrue(result.isMatch());
+            }
+        }
+    }
+    
+    /**
+     * Test fluent API chaining.
+     */
+    @Test
+    void testFluentApi() throws Exception {
+        Path dbPath = tempDir.resolve("test_fluent.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("1.1.1.1", Map.of("a", "1"))
+                   .add("2.2.2.2", Map.of("b", "2"))
+                   .add("3.3.3.3", Map.of("c", "3"))
+                   .setDescription("Fluent test")
+                   .save(dbPath);
+        }
+        
+        assertTrue(Files.exists(dbPath));
+    }
+    
+    /**
+     * Test that operations fail on closed builder.
+     */
+    @Test
+    void testClosedBuilder() throws Exception {
+        DatabaseBuilder builder = new DatabaseBuilder();
+        builder.close();
+        
+        assertTrue(builder.isClosed());
+        
+        // Operations should fail
+        assertThrows(MatchyException.class, () -> 
+            builder.add("1.1.1.1", Map.of("test", "value")));
+        
+        assertThrows(MatchyException.class, () -> 
+            builder.setDescription("test"));
+        
+        assertThrows(MatchyException.class, () -> 
+            builder.save(tempDir.resolve("test.mxy")));
+    }
+    
+    /**
+     * Test building empty database (should work).
+     */
+    @Test
+    void testEmptyDatabase() throws Exception {
+        Path dbPath = tempDir.resolve("empty.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            // Don't add any entries
+            builder.save(dbPath);
+        }
+        
+        // Should be able to open (but queries won't match anything)
+        try (Database db = Database.open(dbPath)) {
+            QueryResult result = db.query("1.1.1.1");
+            assertFalse(result.isMatch());
+        }
+    }
+    
+    /**
+     * Test invalid entry handling.
+     */
+    @Test
+    void testInvalidEntry() {
+        assertThrows(NullPointerException.class, () -> {
+            try (DatabaseBuilder builder = new DatabaseBuilder()) {
+                builder.add(null, Map.of("test", "value"));
+            }
+        });
+        
+        assertThrows(NullPointerException.class, () -> {
+            try (DatabaseBuilder builder = new DatabaseBuilder()) {
+                builder.add("1.1.1.1", null);
+            }
+        });
+    }
+}
