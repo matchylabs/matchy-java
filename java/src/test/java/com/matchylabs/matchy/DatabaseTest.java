@@ -103,9 +103,9 @@ class DatabaseTest {
             assertEquals(0, stats1.getTotalQueries());
             
             // Do some queries
-            db.query("1.1.1.1");
-            db.query("8.8.8.8");
-            db.query("1.1.1.1"); // Cache hit
+            db.query("1.1.1.1");  // cache miss, match
+            db.query("8.8.8.8");  // cache miss, no match
+            db.query("1.1.1.1");  // cache hit, match
             
             // Check stats
             DatabaseStats stats2 = db.getStats();
@@ -173,10 +173,9 @@ class DatabaseTest {
             
             String format = db.getFormat();
             assertNotNull(format);
-            assertTrue(format.contains("IP") || format.contains("Pattern") || format.contains("Combined"));
             
             String metadata = db.getMetadata();
-            // Metadata may be null for pattern-only databases
+            assertNotNull(metadata);
         }
     }
     

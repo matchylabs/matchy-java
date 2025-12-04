@@ -20,10 +20,28 @@ public class NativeStructs {
      */
     @Structure.FieldOrder({"found", "prefix_len", "_data_cache", "_db_ref"})
     public static class MatchyResult extends Structure {
-        public boolean found;
+        /** Whether a match was found (C bool = 1 byte) */
+        public byte found;
+        /** Network prefix length for IP results */
         public byte prefix_len;
+        /** Internal pointer to cached DataValue */
         public Pointer _data_cache;
+        /** Internal database reference */
         public Pointer _db_ref;
+        
+        public MatchyResult() {
+            super();
+        }
+        
+        public MatchyResult(Pointer p) {
+            super(p);
+            read();
+        }
+        
+        /** Check if a match was found */
+        public boolean isFound() {
+            return found != 0;
+        }
     }
     
     /**

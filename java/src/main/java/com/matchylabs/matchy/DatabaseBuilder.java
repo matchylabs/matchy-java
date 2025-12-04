@@ -2,6 +2,8 @@ package com.matchylabs.matchy;
 
 import com.google.gson.Gson;
 import com.matchylabs.matchy.jna.MatchyLibrary;
+import com.sun.jna.Memory;
+import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
 import java.nio.file.Path;
@@ -140,9 +142,10 @@ public class DatabaseBuilder implements AutoCloseable {
     public byte[] toBytes() throws MatchyException {
         checkNotClosed();
         
-        // Allocate pointers for output
-        Pointer bufferPtr = new Pointer(0);
-        Pointer sizePtr = new Pointer(0);
+        // Allocate memory for output pointers (8 bytes each for 64-bit pointers)
+        // Memory constructor already zeros the allocation
+        Memory bufferPtr = new Memory(8);
+        Memory sizePtr = new Memory(8);
         
         int result = MatchyLibrary.INSTANCE.matchy_builder_build(handle, bufferPtr, sizePtr);
         
@@ -150,9 +153,13 @@ public class DatabaseBuilder implements AutoCloseable {
             throw new MatchyException("Failed to build database: " + getErrorMessage(result));
         }
         
-        // Read the buffer and size
+        // Read the buffer pointer and size
         Pointer buffer = bufferPtr.getPointer(0);
         long size = sizePtr.getLong(0);
+        
+        if (Boolean.getBoolean("matchy.debug")) {
+            System.err.println("matchy_builder_build returned: buffer=" + buffer + ", size=" + size);
+        }
         
         if (buffer == null || size == 0) {
             throw new MatchyException("Failed to build database: null buffer returned");
@@ -161,9 +168,9 @@ public class DatabaseBuilder implements AutoCloseable {
         // Copy to byte array
         byte[] data = buffer.getByteArray(0, (int) size);
         
-        // Free the native buffer (allocated by Rust)
-        // Note: We should use libc free, but JNA doesn't expose it directly
-        // The native library should handle cleanup
+        // Free the native buffer (allocated by Rust using libc::malloc)
+        // JNA's Native.free calls standard free()
+        Native.free(Pointer.nativeValue(buffer));
         
         return data;
     }

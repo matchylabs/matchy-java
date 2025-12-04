@@ -4,6 +4,8 @@ import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
+import java.io.File;
+
 /**
  * JNA interface to the matchy C API.
  * 
@@ -34,6 +36,7 @@ public interface MatchyLibrary extends Library {
     
     // Query operations
     NativeStructs.MatchyResult matchy_query(Pointer db, String query);
+    void matchy_query_into(Pointer db, String query, Pointer result);
     void matchy_free_result(Pointer result);
     
     // Result conversion
@@ -74,11 +77,20 @@ public interface MatchyLibrary extends Library {
      * @throws UnsatisfiedLinkError if library cannot be loaded
      */
     static MatchyLibrary loadLibrary() {
-        // Load native library via NativeLoader
-        NativeLoader.loadNativeLibrary();
+        // Prepare native library (extract from JAR if needed)
+        String libraryPath = NativeLoader.prepareLibrary();
         
-        // Create JNA interface (library is already loaded)
-        // We use INSTANCE mode because the library is pre-loaded by NativeLoader
+        // If we extracted to a temp directory, tell JNA where to look
+        if (libraryPath != null) {
+            String currentPath = System.getProperty("jna.library.path", "");
+            if (currentPath.isEmpty()) {
+                System.setProperty("jna.library.path", libraryPath);
+            } else {
+                System.setProperty("jna.library.path", libraryPath + File.pathSeparator + currentPath);
+            }
+        }
+        
+        // Let JNA load the library
         return Native.load("matchy", MatchyLibrary.class);
     }
 }

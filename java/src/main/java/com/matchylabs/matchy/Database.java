@@ -2,6 +2,7 @@ package com.matchylabs.matchy;
 
 import com.matchylabs.matchy.jna.MatchyLibrary;
 import com.matchylabs.matchy.jna.NativeStructs;
+import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 
 import java.nio.file.Path;
@@ -29,13 +30,25 @@ import java.util.Objects;
 public class Database implements AutoCloseable {
     
     private final Pointer handle;
+    // Keep reference to buffer memory to prevent GC while database is in use
+    @SuppressWarnings("unused")
+    private final Memory bufferMemory;
     private volatile boolean closed = false;
     
     /**
-     * Private constructor - use static factory methods.
+     * Private constructor for file-based databases - use static factory methods.
      */
     private Database(Pointer handle) {
         this.handle = Objects.requireNonNull(handle, "Database handle is null");
+        this.bufferMemory = null;
+    }
+    
+    /**
+     * Private constructor for buffer-based databases - use static factory methods.
+     */
+    private Database(Pointer handle, Memory bufferMemory) {
+        this.handle = Objects.requireNonNull(handle, "Database handle is null");
+        this.bufferMemory = bufferMemory;
     }
     
     /**
@@ -74,9 +87,9 @@ public class Database implements AutoCloseable {
     }
     
     /**
-     * Open a database from a memory buffer (zero-copy).
+     * Open a database from a memory buffer.
      * 
-     * <p>The buffer must remain valid for the lifetime of the Database instance.
+     * <p>The buffer is copied to native memory that is managed by the Database instance.
      * 
      * @param buffer Database data
      * @return Database instance
@@ -84,9 +97,12 @@ public class Database implements AutoCloseable {
      */
     public static Database fromBuffer(byte[] buffer) throws MatchyException {
         Objects.requireNonNull(buffer, "buffer cannot be null");
+        if (buffer.length == 0) {
+            throw new MatchyException("Buffer cannot be empty");
+        }
         
         // Allocate native memory and copy buffer
-        Pointer nativeBuffer = new Pointer(Pointer.nativeValue(Pointer.createConstant(0)) + buffer.length);
+        Memory nativeBuffer = new Memory(buffer.length);
         nativeBuffer.write(0, buffer, 0, buffer.length);
         
         Pointer handle = MatchyLibrary.INSTANCE.matchy_open_buffer(nativeBuffer, buffer.length);
@@ -95,7 +111,10 @@ public class Database implements AutoCloseable {
             throw new MatchyException("Failed to open database from buffer");
         }
         
-        return new Database(handle);
+        // NOTE: The native library takes ownership of the buffer, but we need to keep
+        // the Memory object alive so JNA doesn't GC it. We return a Database that
+        // holds the buffer.
+        return new Database(handle, nativeBuffer);
     }
     
     /**
@@ -111,15 +130,36 @@ public class Database implements AutoCloseable {
         checkNotClosed();
         Objects.requireNonNull(query, "query cannot be null");
         
-        NativeStructs.MatchyResult nativeResult = MatchyLibrary.INSTANCE.matchy_query(handle, query);
+        // Use manual memory allocation for the result struct
+        // This ensures we control the memory and can read it back reliably
+        com.sun.jna.Memory resultMem = new com.sun.jna.Memory(24);
+        resultMem.clear(); // Initialize to zero
+        
+        MatchyLibrary.INSTANCE.matchy_query_into(handle, query, resultMem);
+        
+        // Read result from memory
+        NativeStructs.MatchyResult nativeResult = new NativeStructs.MatchyResult(resultMem);
+        
+        // Debug output
+        if (Boolean.getBoolean("matchy.debug")) {
+            byte[] raw = resultMem.getByteArray(0, 24);
+            StringBuilder sb = new StringBuilder("[Database.query] raw bytes: ");
+            for (byte b : raw) sb.append(String.format("%02x ", b & 0xff));
+            System.err.println(sb.toString());
+            
+            System.err.println("[Database.query] query=" + query + 
+                ", found=" + nativeResult.found + 
+                ", prefix_len=" + nativeResult.prefix_len +
+                ", _data_cache=" + nativeResult._data_cache +
+                ", _db_ref=" + nativeResult._db_ref);
+        }
         
         try {
-            if (!nativeResult.found) {
+            if (!nativeResult.isFound()) {
                 return QueryResult.notFound();
             }
             
             // Convert to JSON for simplicity
-            // We need to pass a pointer to the result struct
             String json = MatchyLibrary.INSTANCE.matchy_result_to_json(nativeResult.getPointer());
             
             if (json == null) {
