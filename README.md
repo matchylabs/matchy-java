@@ -4,6 +4,29 @@ Java wrapper for [matchy](https://github.com/matchylabs/matchy) - fast IoC match
 
 ## Installation
 
+### Maven (GitHub Packages)
+
+Add the repository and dependency to your `pom.xml`:
+
+```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <url>https://maven.pkg.github.com/matchylabs/matchy-java</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.matchylabs</groupId>
+    <artifactId>matchy-java</artifactId>
+    <version>0.2.0</version>
+</dependency>
+```
+
+> **Note**: GitHub Packages requires authentication. Add a server entry to `~/.m2/settings.xml` with your GitHub username and a token with `read:packages` scope.
+
+### Manual
+
 Download the JAR from [Releases](https://github.com/matchylabs/matchy-java/releases) and add it to your classpath.
 
 ## Quick Start
@@ -150,15 +173,6 @@ Create databases programmatically.
 
 - [matchy documentation](https://matchylabs.github.io/matchy/) - concepts, file format, CLI
 - [matchy repository](https://github.com/matchylabs/matchy) - native library
-
-## Status
-
-✅ **Core functionality complete** - Ready for use.
-
-## TODO
-
-- [ ] Extractor API (extract IPs, domains, hashes from text)
-- [ ] Maven Central deployment
 
 ## License
 
