@@ -6,11 +6,12 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 **matchy-java** is a Java wrapper for [matchy](https://github.com/matchylabs/matchy), providing JNA bindings to the native matchy library for fast IoC (Indicator of Compromise) matching.
 
-**Status**: 🚧 Work in Progress
+**Status**: ✅ Core Features Complete
 - JNA bindings implemented (NativeLoader, MatchyLibrary, NativeStructs)
 - Core wrapper classes implemented (QueryResult, DatabaseStats, OpenOptions, MatchyException)
-- Database and DatabaseBuilder classes pending
-- No tests or CI/CD yet
+- Database and DatabaseBuilder classes implemented
+- Extractor API implemented (Extractor, ExtractedMatch, ExtractFlags, ItemType)
+- Unit tests for Database, DatabaseBuilder, and Extractor
 
 ### Architecture
 
@@ -23,8 +24,12 @@ matchy-java/
 │       │   ├── NativeLoader.java  # Platform detection & native library loading
 │       │   ├── MatchyLibrary.java # JNA interface to matchy C API
 │       │   └── NativeStructs.java # JNA structure mappings (MatchyResult, etc.)
-│       ├── Database.java          # Main public API (TODO)
-│       ├── DatabaseBuilder.java   # Database builder API (TODO)
+│       ├── Database.java          # Main public API for querying
+│       ├── DatabaseBuilder.java   # Database builder API
+│       ├── Extractor.java         # IoC extraction from text
+│       ├── ExtractedMatch.java    # Single extracted match
+│       ├── ExtractFlags.java      # Extraction type flags
+│       ├── ItemType.java          # Enum of extractable item types
 │       ├── QueryResult.java       # Query result wrapper
 │       ├── DatabaseStats.java     # Database statistics
 │       ├── OpenOptions.java       # Database open configuration
@@ -222,59 +227,42 @@ OpenOptions options = OpenOptions.defaults()
 Database db = Database.open("threats.mxy", options);
 ```
 
+### Extractor Pattern
+
+Use the Extractor to find IoCs (Indicators of Compromise) in text:
+
+```java
+// Extract all supported types
+try (Extractor extractor = Extractor.create(ExtractFlags.ALL)) {
+    List<ExtractedMatch> matches = extractor.extract(
+        "Contact user@example.com at 192.168.1.1 about evil.com");
+    
+    for (ExtractedMatch match : matches) {
+        System.out.println(match.getItemType() + ": " + match.getValue());
+    }
+}
+
+// Extract only specific types
+int flags = ExtractFlags.DOMAINS | ExtractFlags.IPV4 | ExtractFlags.IPV6;
+try (Extractor extractor = Extractor.create(flags)) {
+    List<ExtractedMatch> matches = extractor.extract(text);
+    // Only domains and IPs are extracted
+}
+```
+
+Supported extraction types (see ExtractFlags):
+- DOMAINS - domain names (e.g., "example.com")
+- EMAILS - email addresses
+- IPV4 / IPV6 - IP addresses
+- HASHES - file hashes (MD5, SHA1, SHA256, SHA384, SHA512)
+- BITCOIN / ETHEREUM / MONERO - cryptocurrency addresses
+- ALL - extract everything
+
 ## Key TODOs
 
 Based on README.md, these are the next implementation priorities:
 
-### 1. Database Class (High Priority)
-
-Implement the main Database API:
-- `static Database open(String path)` and `open(String path, OpenOptions options)`
-- `static Database fromBuffer(byte[] buffer)`
-- `QueryResult query(String text)` - main query method
-- `void clearCache()` - clear LRU cache
-- `DatabaseStats getStats()` - get query statistics
-- `String getMetadata()` - database metadata
-- `boolean hasIpData()`, `hasStringData()`, `hasGlobData()`, `hasLiteralData()`
-- `String getFormat()` - get database format version
-- `void close()` - free native resources
-- Implement `AutoCloseable` for try-with-resources
-
-Reference the C API in MatchyLibrary for all available functions.
-
-### 2. DatabaseBuilder Class (High Priority)
-
-Builder for creating databases programmatically:
-- `DatabaseBuilder()` constructor
-- `DatabaseBuilder add(String key, JsonObject data)` - add entry with metadata
-- `DatabaseBuilder add(String key, String jsonData)` - add entry with JSON string
-- `DatabaseBuilder setDescription(String description)` - set database description
-- `Database build()` - build in-memory database
-- `void save(String path)` - save to file
-- `byte[] toBytes()` - serialize to byte array
-
-### 3. Unit Tests (High Priority)
-
-Create test files in `src/test/java/com/matchylabs/matchy/`:
-- `DatabaseTest.java` - test open, query, close
-- `DatabaseBuilderTest.java` - test database creation
-- `QueryResultTest.java` - test result parsing
-- `OpenOptionsTest.java` - test configuration
-- `ExceptionTest.java` - test error handling
-
-Use JUnit 5 (already in pom.xml dependencies).
-
-### 4. Processing API (Medium Priority)
-
-Implement batch processing utilities (matching Rust processing module):
-- `Worker.java` - batch processing with extractor + multiple databases
-- `FileReader.java` - streaming file I/O with gzip support
-- `MatchResult.java` - match results without file context
-- `LineMatch.java` - match results with line numbers
-
-See `native/matchy/WARP.md` "Processing Module API" section for design.
-
-### 5. CI/CD (Medium Priority)
+### 1. CI/CD (Medium Priority)
 
 Create `.github/workflows/ci.yml`:
 - Build native library (Rust) for Linux/macOS/Windows
@@ -283,7 +271,7 @@ Create `.github/workflows/ci.yml`:
 - Generate Javadoc
 - Create release artifacts with platform-specific native libraries
 
-### 6. Examples and Documentation (Low Priority)
+### 2. Examples and Documentation (Low Priority)
 
 Create example programs in `examples/`:
 - `BasicQuery.java` - simple query example

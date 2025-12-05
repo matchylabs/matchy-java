@@ -15,6 +15,31 @@ import java.util.List;
  */
 public class NativeStructs {
     
+    // Extraction type flags
+    public static final int MATCHY_EXTRACT_DOMAINS = 1 << 0;
+    public static final int MATCHY_EXTRACT_EMAILS = 1 << 1;
+    public static final int MATCHY_EXTRACT_IPV4 = 1 << 2;
+    public static final int MATCHY_EXTRACT_IPV6 = 1 << 3;
+    public static final int MATCHY_EXTRACT_HASHES = 1 << 4;
+    public static final int MATCHY_EXTRACT_BITCOIN = 1 << 5;
+    public static final int MATCHY_EXTRACT_ETHEREUM = 1 << 6;
+    public static final int MATCHY_EXTRACT_MONERO = 1 << 7;
+    public static final int MATCHY_EXTRACT_ALL = 255;
+    
+    // Item type constants
+    public static final int MATCHY_ITEM_TYPE_DOMAIN = 0;
+    public static final int MATCHY_ITEM_TYPE_EMAIL = 1;
+    public static final int MATCHY_ITEM_TYPE_IPV4 = 2;
+    public static final int MATCHY_ITEM_TYPE_IPV6 = 3;
+    public static final int MATCHY_ITEM_TYPE_MD5 = 4;
+    public static final int MATCHY_ITEM_TYPE_SHA1 = 5;
+    public static final int MATCHY_ITEM_TYPE_SHA256 = 6;
+    public static final int MATCHY_ITEM_TYPE_SHA384 = 7;
+    public static final int MATCHY_ITEM_TYPE_SHA512 = 8;
+    public static final int MATCHY_ITEM_TYPE_BITCOIN = 9;
+    public static final int MATCHY_ITEM_TYPE_ETHEREUM = 10;
+    public static final int MATCHY_ITEM_TYPE_MONERO = 11;
+    
     /**
      * Maps to matchy_result_t in C.
      */
@@ -77,6 +102,54 @@ public class NativeStructs {
         
         public MatchyStats() {
             super();
+        }
+    }
+    
+    /**
+     * Maps to matchy_match_t in C.
+     * A single extracted match.
+     */
+    @Structure.FieldOrder({"item_type", "value", "start", "end"})
+    public static class MatchyMatch extends Structure {
+        /** Item type (one of MATCHY_ITEM_TYPE_* constants) */
+        public byte item_type;
+        /** The extracted value as a null-terminated string */
+        public String value;
+        /** Byte offset where the match starts in the input */
+        public long start;
+        /** Byte offset where the match ends in the input (exclusive) */
+        public long end;
+        
+        public MatchyMatch() {
+            super();
+        }
+        
+        public MatchyMatch(Pointer p) {
+            super(p);
+            read();
+        }
+    }
+    
+    /**
+     * Maps to matchy_matches_t in C.
+     * Array of extracted matches.
+     */
+    @Structure.FieldOrder({"items", "count", "_internal"})
+    public static class MatchyMatches extends Structure {
+        /** Pointer to array of matches */
+        public Pointer items;
+        /** Number of matches */
+        public long count;
+        /** Internal pointer (do not use) */
+        public Pointer _internal;
+        
+        public MatchyMatches() {
+            super();
+        }
+        
+        public MatchyMatches(Pointer p) {
+            super(p);
+            read();
         }
     }
 }

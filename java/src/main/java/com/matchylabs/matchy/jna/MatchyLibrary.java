@@ -70,6 +70,13 @@ public interface MatchyLibrary extends Library {
     // Version
     String matchy_version();
     
+    // Extractor operations
+    Pointer matchy_extractor_create(int flags);
+    int matchy_extractor_extract_chunk(Pointer extractor, Pointer data, long len, NativeStructs.MatchyMatches matches);
+    void matchy_matches_free(NativeStructs.MatchyMatches matches);
+    void matchy_extractor_free(Pointer extractor);
+    String matchy_item_type_name(byte item_type);
+    
     /**
      * Load the native library and return the JNA interface.
      * 

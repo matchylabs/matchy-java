@@ -29,8 +29,7 @@ hs_err_pid*
 # Java
 *.log
 
-# Native libraries (bundled in CI, not committed)
-java/src/main/resources/native/
+# Native library files (bundled at build time into target/classes)
 *.dylib
 *.so
 *.dll
