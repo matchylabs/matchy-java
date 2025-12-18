@@ -102,6 +102,37 @@ OpenOptions watchOptions = OpenOptions.defaults()
 // Disable caching entirely
 OpenOptions noCacheOptions = OpenOptions.defaults()
     .noCache();
+
+// Auto-update from remote URL
+OpenOptions autoUpdateOptions = OpenOptions.defaults()
+    .autoUpdate(true)
+    .updateIntervalSecs(3600)
+    .cacheDir("/tmp/matchy-cache");
+```
+
+### Case-Insensitive Matching
+
+```java
+try (DatabaseBuilder builder = new DatabaseBuilder()) {
+    builder.setCaseInsensitive(true)
+           .add("Evil.COM", Map.of("type", "malicious"))
+           .save(Paths.get("threats.mxy"));
+}
+
+try (Database db = Database.open(Paths.get("threats.mxy"))) {
+    db.query("evil.com").isMatch();  // true
+    db.query("EVIL.COM").isMatch();  // true
+}
+```
+
+### Database Validation
+
+```java
+// Validate database file
+Database.validate(Paths.get("threats.mxy"), ValidationLevel.STANDARD);
+
+// Strict validation
+Database.validate(Paths.get("threats.mxy"), ValidationLevel.STRICT);
 ```
 
 ### Error Handling
@@ -130,10 +161,14 @@ Main class for querying matchy databases.
 | `Database.open(Path)` | Open a database file |
 | `Database.open(Path, OpenOptions)` | Open with custom options |
 | `Database.fromBuffer(byte[])` | Open from memory |
+| `Database.validate(Path, ValidationLevel)` | Validate a database file |
+| `Database.hasAutoUpdate()` | Check if auto-update feature is available |
+| `Database.getVersion()` | Get native library version |
 | `query(String)` | Query IP address or pattern |
 | `getStats()` | Get query statistics |
 | `clearCache()` | Clear the LRU cache |
 | `getMetadata()` | Get database metadata as JSON |
+| `getUpdateUrl()` | Get embedded update URL (if set) |
 | `hasIpData()` / `hasStringData()` | Check data types |
 | `close()` | Free resources (use try-with-resources) |
 
@@ -146,6 +181,9 @@ Create databases programmatically.
 | `add(String, Map)` | Add entry with data |
 | `addJson(String, String)` | Add entry with JSON string |
 | `setDescription(String)` | Set database description |
+| `setCaseInsensitive(boolean)` | Enable case-insensitive matching |
+| `setSchema(String)` | Enable schema validation (e.g., "threatdb") |
+| `setUpdateUrl(String)` | Embed update URL in database |
 | `save(Path)` | Save to file |
 | `build()` | Build in-memory Database |
 | `toBytes()` | Build as byte array |
@@ -158,6 +196,20 @@ Create databases programmatically.
 | `getData()` | Match data as JsonObject |
 | `getDataAsJson()` | Match data as JSON string |
 | `getPrefixLength()` | Network prefix (for IP matches) |
+
+### OpenOptions
+
+Configuration for opening databases.
+
+| Method | Description |
+|--------|-------------|
+| `OpenOptions.defaults()` | Create default options |
+| `cacheCapacity(int)` | Set LRU cache size |
+| `noCache()` | Disable caching |
+| `autoReload(boolean)` | Auto-reload on file changes |
+| `autoUpdate(boolean)` | Enable HTTP auto-update |
+| `updateIntervalSecs(int)` | Update check interval |
+| `cacheDir(String)` | Directory for cached updates |
 
 ## Requirements
 

@@ -1,8 +1,10 @@
 package com.matchylabs.matchy.jna;
 
+import com.sun.jna.Callback;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+import com.sun.jna.ptr.PointerByReference;
 
 import java.io.File;
 
@@ -27,6 +29,9 @@ public interface MatchyLibrary extends Library {
     int MATCHY_ERROR_OUT_OF_MEMORY = -4;
     int MATCHY_ERROR_INVALID_PARAM = -5;
     int MATCHY_ERROR_IO = -6;
+    int MATCHY_ERROR_SCHEMA_VALIDATION = -7;
+    int MATCHY_ERROR_UNKNOWN_SCHEMA = -8;
+    int MATCHY_ERROR_DATA_PARSE = -9;
     
     // Database operations
     Pointer matchy_open(String filename);
@@ -47,6 +52,9 @@ public interface MatchyLibrary extends Library {
     Pointer matchy_builder_new();
     int matchy_builder_add(Pointer builder, String key, String json_data);
     int matchy_builder_set_description(Pointer builder, String description);
+    int matchy_builder_set_case_insensitive(Pointer builder, byte case_insensitive);
+    int matchy_builder_set_schema(Pointer builder, String schema_name);
+    int matchy_builder_set_update_url(Pointer builder, String url);
     int matchy_builder_save(Pointer builder, String filename);
     int matchy_builder_build(Pointer builder, Pointer buffer_out, Pointer size_out);
     void matchy_builder_free(Pointer builder);
@@ -56,11 +64,11 @@ public interface MatchyLibrary extends Library {
     void matchy_clear_cache(Pointer db);
     String matchy_metadata(Pointer db);
     
-    // Database introspection
-    boolean matchy_has_ip_data(Pointer db);
-    boolean matchy_has_string_data(Pointer db);
-    boolean matchy_has_literal_data(Pointer db);
-    boolean matchy_has_glob_data(Pointer db);
+    // Database introspection (C bool = 1 byte, use byte in JNA)
+    byte matchy_has_ip_data(Pointer db);
+    byte matchy_has_string_data(Pointer db);
+    byte matchy_has_literal_data(Pointer db);
+    byte matchy_has_glob_data(Pointer db);
     String matchy_format(Pointer db);
     
     // Pattern operations
@@ -69,6 +77,24 @@ public interface MatchyLibrary extends Library {
     
     // Version
     String matchy_version();
+    
+    // Structured data access
+    int matchy_result_get_entry(Pointer result, NativeStructs.MatchyEntry entry);
+    int matchy_aget_value(NativeStructs.MatchyEntry entry, NativeStructs.MatchyEntryData entry_data, Pointer path);
+    int matchy_get_entry_data_list(NativeStructs.MatchyEntry entry, PointerByReference entry_data_list);
+    void matchy_free_entry_data_list(Pointer list);
+    
+    // Auto-update
+    String matchy_get_update_url(Pointer db);
+    byte matchy_has_auto_update();
+    
+    // Validation
+    int matchy_validate(String filename, int level, PointerByReference error_message);
+    
+    // Reload callback interface
+    interface ReloadCallbackNative extends Callback {
+        void invoke(NativeStructs.MatchyReloadEvent event, Pointer user_data);
+    }
     
     // Extractor operations
     Pointer matchy_extractor_create(int flags);

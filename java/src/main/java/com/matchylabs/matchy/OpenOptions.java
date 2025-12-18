@@ -19,11 +19,18 @@ public class OpenOptions {
     
     private int cacheCapacity;
     private boolean autoReload;
+    private boolean autoUpdate;
+    private int updateIntervalSecs;
+    private String cacheDir;
+    private ReloadCallback reloadCallback;
     
     private OpenOptions() {
-        // Default values (matching C API defaults)
         this.cacheCapacity = 10_000;
         this.autoReload = false;
+        this.autoUpdate = false;
+        this.updateIntervalSecs = 3600;
+        this.cacheDir = null;
+        this.reloadCallback = null;
     }
     
     /**
@@ -86,42 +93,117 @@ public class OpenOptions {
     }
     
     /**
-     * Get the configured cache capacity.
+     * Enable automatic updates from the database's embedded URL.
+     * 
+     * When enabled, periodically checks the database's embedded update URL for new
+     * versions using HTTP conditional GET (ETag). Database must have an update URL
+     * embedded in metadata. Updates are downloaded to cacheDir (or system default).
+     * 
+     * Default: false
      *
-     * @return cache capacity
+     * @param enable true to enable auto-update
+     * @return this OpenOptions for chaining
      */
+    public OpenOptions autoUpdate(boolean enable) {
+        this.autoUpdate = enable;
+        return this;
+    }
+    
+    /**
+     * Set how often to check for remote updates.
+     * 
+     * Only used when autoUpdate is true.
+     * Default: 3600 (1 hour)
+     *
+     * @param seconds interval in seconds
+     * @return this OpenOptions for chaining
+     */
+    public OpenOptions updateIntervalSecs(int seconds) {
+        if (seconds < 0) {
+            throw new IllegalArgumentException("Update interval cannot be negative");
+        }
+        this.updateIntervalSecs = seconds;
+        return this;
+    }
+    
+    /**
+     * Set the cache directory for downloaded updates.
+     * 
+     * If not set, uses system default (~/.cache/matchy/ on Unix).
+     *
+     * @param dir cache directory path
+     * @return this OpenOptions for chaining
+     */
+    public OpenOptions cacheDir(String dir) {
+        this.cacheDir = dir;
+        return this;
+    }
+    
+    /**
+     * Set a callback to be notified when database reloads.
+     * 
+     * The callback is invoked from a native watcher thread - keep processing minimal.
+     * Do not call matchy methods from within the callback.
+     *
+     * @param callback callback to invoke on reload events
+     * @return this OpenOptions for chaining
+     */
+    public OpenOptions reloadCallback(ReloadCallback callback) {
+        this.reloadCallback = callback;
+        return this;
+    }
+    
     public int getCacheCapacity() {
         return cacheCapacity;
     }
     
-    /**
-     * Check if auto-reload is enabled.
-     *
-     * @return true if auto-reload is enabled
-     */
     public boolean isAutoReload() {
         return autoReload;
     }
     
-    /**
-     * Convert to native options structure.
-     * 
-     * Package-private - used internally.
-     *
-     * @return native options structure
-     */
+    public boolean isAutoUpdate() {
+        return autoUpdate;
+    }
+    
+    public int getUpdateIntervalSecs() {
+        return updateIntervalSecs;
+    }
+    
+    public String getCacheDir() {
+        return cacheDir;
+    }
+    
+    public ReloadCallback getReloadCallback() {
+        return reloadCallback;
+    }
+    
     NativeStructs.MatchyOpenOptions toNative() {
+        return toNative(null);
+    }
+    
+    NativeStructs.MatchyOpenOptions toNative(CallbackHolder callbackHolder) {
         NativeStructs.MatchyOpenOptions nativeOpts = new NativeStructs.MatchyOpenOptions();
         nativeOpts.cache_capacity = cacheCapacity;
         nativeOpts.auto_reload = autoReload;
-        nativeOpts.reload_callback = Pointer.NULL;
-        nativeOpts.reload_callback_user_data = Pointer.NULL;
+        nativeOpts.auto_update = autoUpdate;
+        nativeOpts.update_interval_secs = updateIntervalSecs;
+        nativeOpts.cache_dir = cacheDir;
+        
+        if (reloadCallback != null && callbackHolder != null) {
+            callbackHolder.setCallback(reloadCallback);
+            nativeOpts.reload_callback = callbackHolder.getNativeCallback();
+            nativeOpts.reload_callback_user_data = Pointer.NULL;
+        } else {
+            nativeOpts.reload_callback = Pointer.NULL;
+            nativeOpts.reload_callback_user_data = Pointer.NULL;
+        }
+        
         return nativeOpts;
     }
     
     @Override
     public String toString() {
-        return String.format("OpenOptions{cacheCapacity=%d, autoReload=%s}",
-            cacheCapacity, autoReload);
+        return String.format("OpenOptions{cacheCapacity=%d, autoReload=%s, autoUpdate=%s, updateIntervalSecs=%d}",
+            cacheCapacity, autoReload, autoUpdate, updateIntervalSecs);
     }
 }

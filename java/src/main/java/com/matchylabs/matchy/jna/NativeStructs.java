@@ -2,9 +2,7 @@ package com.matchylabs.matchy.jna;
 
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
-
-import java.util.Arrays;
-import java.util.List;
+import com.sun.jna.Union;
 
 /**
  * JNA structure mappings for matchy C API.
@@ -40,6 +38,26 @@ public class NativeStructs {
     public static final int MATCHY_ITEM_TYPE_ETHEREUM = 10;
     public static final int MATCHY_ITEM_TYPE_MONERO = 11;
     
+    // Validation level constants
+    public static final int MATCHY_VALIDATION_STANDARD = 0;
+    public static final int MATCHY_VALIDATION_STRICT = 1;
+    
+    // Data type constants (MMDB format)
+    public static final int MATCHY_DATA_TYPE_EXTENDED = 0;
+    public static final int MATCHY_DATA_TYPE_POINTER = 1;
+    public static final int MATCHY_DATA_TYPE_UTF8_STRING = 2;
+    public static final int MATCHY_DATA_TYPE_DOUBLE = 3;
+    public static final int MATCHY_DATA_TYPE_BYTES = 4;
+    public static final int MATCHY_DATA_TYPE_UINT16 = 5;
+    public static final int MATCHY_DATA_TYPE_UINT32 = 6;
+    public static final int MATCHY_DATA_TYPE_MAP = 7;
+    public static final int MATCHY_DATA_TYPE_INT32 = 8;
+    public static final int MATCHY_DATA_TYPE_UINT64 = 9;
+    public static final int MATCHY_DATA_TYPE_UINT128 = 10;
+    public static final int MATCHY_DATA_TYPE_ARRAY = 11;
+    public static final int MATCHY_DATA_TYPE_BOOLEAN = 14;
+    public static final int MATCHY_DATA_TYPE_FLOAT = 15;
+    
     /**
      * Maps to matchy_result_t in C.
      */
@@ -72,11 +90,18 @@ public class NativeStructs {
     /**
      * Maps to matchy_open_options_t in C.
      */
-    @Structure.FieldOrder({"cache_capacity", "auto_reload", "reload_callback", "reload_callback_user_data"})
+    @Structure.FieldOrder({
+        "cache_capacity", "auto_reload", "auto_update", 
+        "update_interval_secs", "cache_dir",
+        "reload_callback", "reload_callback_user_data"
+    })
     public static class MatchyOpenOptions extends Structure {
         public int cache_capacity;
         public boolean auto_reload;
-        public Pointer reload_callback;  // Function pointer (not used in initial version)
+        public boolean auto_update;
+        public int update_interval_secs;
+        public String cache_dir;
+        public Pointer reload_callback;
         public Pointer reload_callback_user_data;
         
         public MatchyOpenOptions() {
@@ -150,6 +175,155 @@ public class NativeStructs {
         public MatchyMatches(Pointer p) {
             super(p);
             read();
+        }
+    }
+    
+    @Structure.FieldOrder({"db", "data_ptr"})
+    public static class MatchyEntry extends Structure {
+        public Pointer db;
+        public Pointer data_ptr;
+        
+        public MatchyEntry() {
+            super();
+        }
+        
+        public MatchyEntry(Pointer p) {
+            super(p);
+            read();
+        }
+    }
+    
+    public static class MatchyEntryDataValue extends Union {
+        public int pointer;
+        public Pointer utf8_string;
+        public double double_value;
+        public Pointer bytes;
+        public short uint16;
+        public int uint32;
+        public int int32;
+        public long uint64;
+        public byte[] uint128 = new byte[16];
+        public byte boolean_value;
+        public float float_value;
+        
+        public MatchyEntryDataValue() {
+            super();
+        }
+        
+        public MatchyEntryDataValue(Pointer p) {
+            super(p);
+        }
+        
+        public String getUtf8String() {
+            return utf8_string != null ? utf8_string.getString(0) : null;
+        }
+        
+        public byte[] getBytes(int size) {
+            return bytes != null ? bytes.getByteArray(0, size) : null;
+        }
+        
+        public boolean getBoolean() {
+            return boolean_value != 0;
+        }
+    }
+    
+    @Structure.FieldOrder({"has_data", "type_", "value", "data_size", "offset"})
+    public static class MatchyEntryData extends Structure {
+        public byte has_data;
+        public int type_;
+        public MatchyEntryDataValue value;
+        public int data_size;
+        public int offset;
+        
+        public MatchyEntryData() {
+            super();
+        }
+        
+        public MatchyEntryData(Pointer p) {
+            super(p);
+            read();
+        }
+        
+        public boolean hasData() {
+            return has_data != 0;
+        }
+        
+        public void setActiveUnionField() {
+            switch (type_) {
+                case MATCHY_DATA_TYPE_POINTER:
+                case MATCHY_DATA_TYPE_UINT32:
+                    value.setType(int.class);
+                    break;
+                case MATCHY_DATA_TYPE_UTF8_STRING:
+                case MATCHY_DATA_TYPE_BYTES:
+                    value.setType(Pointer.class);
+                    break;
+                case MATCHY_DATA_TYPE_DOUBLE:
+                    value.setType(double.class);
+                    break;
+                case MATCHY_DATA_TYPE_UINT16:
+                    value.setType(short.class);
+                    break;
+                case MATCHY_DATA_TYPE_INT32:
+                    value.setType(int.class);
+                    break;
+                case MATCHY_DATA_TYPE_UINT64:
+                    value.setType(long.class);
+                    break;
+                case MATCHY_DATA_TYPE_UINT128:
+                    value.setType(byte[].class);
+                    break;
+                case MATCHY_DATA_TYPE_BOOLEAN:
+                    value.setType(byte.class);
+                    break;
+                case MATCHY_DATA_TYPE_FLOAT:
+                    value.setType(float.class);
+                    break;
+            }
+            value.read();
+        }
+    }
+    
+    @Structure.FieldOrder({"entry_data", "next"})
+    public static class MatchyEntryDataList extends Structure {
+        public MatchyEntryData entry_data;
+        public Pointer next;
+        
+        public MatchyEntryDataList() {
+            super();
+        }
+        
+        public MatchyEntryDataList(Pointer p) {
+            super(p);
+            read();
+        }
+        
+        public MatchyEntryDataList getNext() {
+            if (next == null || next == Pointer.NULL) {
+                return null;
+            }
+            return new MatchyEntryDataList(next);
+        }
+    }
+    
+    @Structure.FieldOrder({"path", "success", "error", "generation"})
+    public static class MatchyReloadEvent extends Structure {
+        public String path;
+        public byte success;
+        public String error;
+        public long generation;
+        
+        public MatchyReloadEvent() {
+            super();
+        }
+        
+        public MatchyReloadEvent(Pointer p) {
+            super(p);
+            read();
+        }
+        
+        public boolean isSuccess() {
+            return success != 0;
         }
     }
 }

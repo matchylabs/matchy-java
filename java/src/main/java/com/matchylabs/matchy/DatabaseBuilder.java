@@ -115,6 +115,68 @@ public class DatabaseBuilder implements AutoCloseable {
     }
     
     /**
+     * Enable case-insensitive matching for patterns and literals.
+     * IP lookups are always case-insensitive regardless of this setting.
+     *
+     * @param caseInsensitive true for case-insensitive matching
+     * @return this builder for chaining
+     * @throws MatchyException if setting fails or builder is closed
+     */
+    public DatabaseBuilder setCaseInsensitive(boolean caseInsensitive) throws MatchyException {
+        checkNotClosed();
+        
+        int result = MatchyLibrary.INSTANCE.matchy_builder_set_case_insensitive(handle, (byte)(caseInsensitive ? 1 : 0));
+        
+        if (result != MatchyLibrary.MATCHY_SUCCESS) {
+            throw new MatchyException("Failed to set case insensitive: " + getErrorMessage(result));
+        }
+        
+        return this;
+    }
+    
+    /**
+     * Enable schema validation for entries.
+     * When set, all entries added via add() will be validated against the schema.
+     *
+     * @param schemaName name of a known schema (e.g., "threatdb")
+     * @return this builder for chaining
+     * @throws MatchyException if schema is unknown or builder is closed
+     */
+    public DatabaseBuilder setSchema(String schemaName) throws MatchyException {
+        checkNotClosed();
+        Objects.requireNonNull(schemaName, "schemaName cannot be null");
+        
+        int result = MatchyLibrary.INSTANCE.matchy_builder_set_schema(handle, schemaName);
+        
+        if (result != MatchyLibrary.MATCHY_SUCCESS) {
+            throw new MatchyException("Failed to set schema '" + schemaName + "': " + getErrorMessage(result));
+        }
+        
+        return this;
+    }
+    
+    /**
+     * Set the update URL stored in database metadata.
+     * Applications using auto_update will fetch updates from this URL.
+     *
+     * @param url update URL
+     * @return this builder for chaining
+     * @throws MatchyException if setting fails or builder is closed
+     */
+    public DatabaseBuilder setUpdateUrl(String url) throws MatchyException {
+        checkNotClosed();
+        Objects.requireNonNull(url, "url cannot be null");
+        
+        int result = MatchyLibrary.INSTANCE.matchy_builder_set_update_url(handle, url);
+        
+        if (result != MatchyLibrary.MATCHY_SUCCESS) {
+            throw new MatchyException("Failed to set update URL: " + getErrorMessage(result));
+        }
+        
+        return this;
+    }
+    
+    /**
      * Build and save database to file.
      * 
      * @param path Path where database should be saved
@@ -221,9 +283,6 @@ public class DatabaseBuilder implements AutoCloseable {
         }
     }
     
-    /**
-     * Convert error code to human-readable message.
-     */
     private String getErrorMessage(int errorCode) {
         switch (errorCode) {
             case MatchyLibrary.MATCHY_ERROR_FILE_NOT_FOUND:
@@ -238,6 +297,12 @@ public class DatabaseBuilder implements AutoCloseable {
                 return "Invalid parameter";
             case MatchyLibrary.MATCHY_ERROR_IO:
                 return "I/O error";
+            case MatchyLibrary.MATCHY_ERROR_SCHEMA_VALIDATION:
+                return "Schema validation failed";
+            case MatchyLibrary.MATCHY_ERROR_UNKNOWN_SCHEMA:
+                return "Unknown schema";
+            case MatchyLibrary.MATCHY_ERROR_DATA_PARSE:
+                return "Data parse error";
             default:
                 return "Error code " + errorCode;
         }

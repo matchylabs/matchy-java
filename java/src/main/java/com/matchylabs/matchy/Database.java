@@ -4,6 +4,7 @@ import com.matchylabs.matchy.jna.MatchyLibrary;
 import com.matchylabs.matchy.jna.NativeStructs;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
+import com.sun.jna.ptr.PointerByReference;
 
 import java.nio.file.Path;
 import java.util.Objects;
@@ -30,25 +31,24 @@ import java.util.Objects;
 public class Database implements AutoCloseable {
     
     private final Pointer handle;
-    // Keep reference to buffer memory to prevent GC while database is in use
     @SuppressWarnings("unused")
     private final Memory bufferMemory;
+    @SuppressWarnings("unused")
+    private final CallbackHolder callbackHolder;
     private volatile boolean closed = false;
     
-    /**
-     * Private constructor for file-based databases - use static factory methods.
-     */
     private Database(Pointer handle) {
-        this.handle = Objects.requireNonNull(handle, "Database handle is null");
-        this.bufferMemory = null;
+        this(handle, null, null);
     }
     
-    /**
-     * Private constructor for buffer-based databases - use static factory methods.
-     */
     private Database(Pointer handle, Memory bufferMemory) {
+        this(handle, bufferMemory, null);
+    }
+    
+    private Database(Pointer handle, Memory bufferMemory, CallbackHolder callbackHolder) {
         this.handle = Objects.requireNonNull(handle, "Database handle is null");
         this.bufferMemory = bufferMemory;
+        this.callbackHolder = callbackHolder;
     }
     
     /**
@@ -74,16 +74,21 @@ public class Database implements AutoCloseable {
         Objects.requireNonNull(path, "path cannot be null");
         Objects.requireNonNull(options, "options cannot be null");
         
+        CallbackHolder callbackHolder = null;
+        if (options.getReloadCallback() != null) {
+            callbackHolder = new CallbackHolder();
+        }
+        
         Pointer handle = MatchyLibrary.INSTANCE.matchy_open_with_options(
             path.toString(), 
-            options.toNative()
+            options.toNative(callbackHolder)
         );
         
         if (handle == null) {
             throw new MatchyException("Failed to open database: " + path);
         }
         
-        return new Database(handle);
+        return new Database(handle, null, callbackHolder);
     }
     
     /**
@@ -111,10 +116,64 @@ public class Database implements AutoCloseable {
             throw new MatchyException("Failed to open database from buffer");
         }
         
-        // NOTE: The native library takes ownership of the buffer, but we need to keep
-        // the Memory object alive so JNA doesn't GC it. We return a Database that
-        // holds the buffer.
         return new Database(handle, nativeBuffer);
+    }
+    
+    /**
+     * Validate a database file before opening.
+     *
+     * @param path path to database file
+     * @param level validation level
+     * @throws MatchyException with error details if invalid
+     */
+    public static void validate(Path path, ValidationLevel level) throws MatchyException {
+        Objects.requireNonNull(path, "path cannot be null");
+        Objects.requireNonNull(level, "level cannot be null");
+        
+        PointerByReference errorPtr = new PointerByReference();
+        int result = MatchyLibrary.INSTANCE.matchy_validate(
+            path.toString(), 
+            level.getNativeValue(), 
+            errorPtr
+        );
+        
+        if (result != MatchyLibrary.MATCHY_SUCCESS) {
+            String errorMsg = "Validation failed";
+            Pointer errPointer = errorPtr.getValue();
+            if (errPointer != null && errPointer != Pointer.NULL) {
+                errorMsg = errPointer.getString(0);
+                MatchyLibrary.INSTANCE.matchy_free_string(errPointer);
+            }
+            throw new MatchyException(errorMsg);
+        }
+    }
+    
+    /**
+     * Validate a database file with strict validation.
+     *
+     * @param path path to database file
+     * @throws MatchyException with error details if invalid
+     */
+    public static void validate(Path path) throws MatchyException {
+        validate(path, ValidationLevel.STRICT);
+    }
+    
+    /**
+     * Check if auto-update feature is available in the native library.
+     *
+     * @return true if auto-update is available
+     */
+    public static boolean hasAutoUpdate() {
+        return MatchyLibrary.INSTANCE.matchy_has_auto_update() != 0;
+    }
+    
+    /**
+     * Get the native library version.
+     *
+     * @return version string (e.g., "0.4.0")
+     */
+    public static String getVersion() {
+        return MatchyLibrary.INSTANCE.matchy_version();
     }
     
     /**
@@ -224,7 +283,7 @@ public class Database implements AutoCloseable {
      */
     public boolean hasIpData() throws MatchyException {
         checkNotClosed();
-        return MatchyLibrary.INSTANCE.matchy_has_ip_data(handle);
+        return MatchyLibrary.INSTANCE.matchy_has_ip_data(handle) != 0;
     }
     
     /**
@@ -235,7 +294,7 @@ public class Database implements AutoCloseable {
      */
     public boolean hasStringData() throws MatchyException {
         checkNotClosed();
-        return MatchyLibrary.INSTANCE.matchy_has_string_data(handle);
+        return MatchyLibrary.INSTANCE.matchy_has_string_data(handle) != 0;
     }
     
     /**
@@ -246,7 +305,7 @@ public class Database implements AutoCloseable {
      */
     public boolean hasLiteralData() throws MatchyException {
         checkNotClosed();
-        return MatchyLibrary.INSTANCE.matchy_has_literal_data(handle);
+        return MatchyLibrary.INSTANCE.matchy_has_literal_data(handle) != 0;
     }
     
     /**
@@ -257,7 +316,7 @@ public class Database implements AutoCloseable {
      */
     public boolean hasGlobData() throws MatchyException {
         checkNotClosed();
-        return MatchyLibrary.INSTANCE.matchy_has_glob_data(handle);
+        return MatchyLibrary.INSTANCE.matchy_has_glob_data(handle) != 0;
     }
     
     /**
@@ -292,6 +351,17 @@ public class Database implements AutoCloseable {
     public String getPatternString(int patternId) throws MatchyException {
         checkNotClosed();
         return MatchyLibrary.INSTANCE.matchy_get_pattern_string(handle, patternId);
+    }
+    
+    /**
+     * Get the update URL from database metadata.
+     *
+     * @return URL string or null if not set
+     * @throws MatchyException if database is closed
+     */
+    public String getUpdateUrl() throws MatchyException {
+        checkNotClosed();
+        return MatchyLibrary.INSTANCE.matchy_get_update_url(handle);
     }
     
     /**

@@ -179,6 +179,44 @@ class DatabaseTest {
         }
     }
     
+    @Test
+    void testHasLiteralAndGlobData() throws Exception {
+        Path literalDb = tempDir.resolve("test_literal.mxy");
+        Path globDb = tempDir.resolve("test_glob.mxy");
+        Path mixedDb = tempDir.resolve("test_mixed.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("exact.example.com", Map.of("type", "literal"));
+            builder.save(literalDb);
+        }
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("*.example.com", Map.of("type", "glob"));
+            builder.save(globDb);
+        }
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("exact.example.com", Map.of("type", "literal"));
+            builder.add("*.evil.com", Map.of("type", "glob"));
+            builder.save(mixedDb);
+        }
+        
+        try (Database db = Database.open(literalDb)) {
+            assertTrue(db.hasLiteralData());
+            assertFalse(db.hasGlobData());
+        }
+        
+        try (Database db = Database.open(globDb)) {
+            assertFalse(db.hasLiteralData());
+            assertTrue(db.hasGlobData());
+        }
+        
+        try (Database db = Database.open(mixedDb)) {
+            assertTrue(db.hasLiteralData());
+            assertTrue(db.hasGlobData());
+        }
+    }
+    
     /**
      * Test building in-memory database.
      */
@@ -226,5 +264,76 @@ class DatabaseTest {
     void testOpenNonExistent() {
         Path nonExistent = tempDir.resolve("does_not_exist.mxy");
         assertThrows(MatchyException.class, () -> Database.open(nonExistent));
+    }
+    
+    @Test
+    void testValidateValidDatabase() throws Exception {
+        Path dbPath = tempDir.resolve("test_validate.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("1.2.3.4", Map.of("test", "value"));
+            builder.save(dbPath);
+        }
+        
+        assertDoesNotThrow(() -> Database.validate(dbPath));
+        assertDoesNotThrow(() -> Database.validate(dbPath, ValidationLevel.STANDARD));
+        assertDoesNotThrow(() -> Database.validate(dbPath, ValidationLevel.STRICT));
+    }
+    
+    @Test
+    void testValidateInvalidDatabase() throws Exception {
+        Path invalidPath = tempDir.resolve("invalid.mxy");
+        java.nio.file.Files.write(invalidPath, "not a valid database".getBytes());
+        
+        assertThrows(MatchyException.class, () -> Database.validate(invalidPath));
+    }
+    
+    @Test
+    void testGetVersion() {
+        String version = Database.getVersion();
+        assertNotNull(version);
+        assertFalse(version.isEmpty());
+    }
+    
+    @Test
+    void testHasAutoUpdate() {
+        Database.hasAutoUpdate();
+    }
+    
+    @Test
+    void testAutoUpdateOptions() throws Exception {
+        Path dbPath = tempDir.resolve("test_auto_update.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("1.2.3.4", Map.of("test", "value"));
+            builder.save(dbPath);
+        }
+        
+        OpenOptions options = OpenOptions.defaults()
+            .autoUpdate(true)
+            .updateIntervalSecs(1800)
+            .cacheDir(tempDir.toString());
+        
+        assertEquals(1800, options.getUpdateIntervalSecs());
+        assertTrue(options.isAutoUpdate());
+        assertEquals(tempDir.toString(), options.getCacheDir());
+        
+        try (Database db = Database.open(dbPath, options)) {
+            assertNotNull(db);
+        }
+    }
+    
+    @Test
+    void testGetUpdateUrl() throws Exception {
+        Path dbPath = tempDir.resolve("test_get_url.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            builder.add("1.2.3.4", Map.of("test", "value"));
+            builder.save(dbPath);
+        }
+        
+        try (Database db = Database.open(dbPath)) {
+            db.getUpdateUrl();
+        }
     }
 }

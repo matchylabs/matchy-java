@@ -243,4 +243,114 @@ class DatabaseBuilderTest {
             assertTrue(db2.query("2.2.2.2").isMatch(), "DB2 should match 2.2.2.2");
         }
     }
+    
+    @Test
+    void testSetCaseInsensitive() throws Exception {
+        Path dbPath = tempDir.resolve("test_case_insensitive.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            try {
+                builder.setCaseInsensitive(true)
+                       .add("Evil.COM", Map.of("type", "malicious"));
+            } catch (UnsatisfiedLinkError e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, 
+                    "Native library doesn't support setCaseInsensitive");
+            }
+            builder.save(dbPath);
+        }
+        
+        try (Database db = Database.open(dbPath)) {
+            assertTrue(db.query("Evil.COM").isMatch(), "Should match original case");
+            assertTrue(db.query("evil.com").isMatch(), "Should match lowercase");
+            assertTrue(db.query("EVIL.COM").isMatch(), "Should match uppercase");
+        }
+    }
+    
+    @Test
+    void testSetUpdateUrl() throws Exception {
+        Path dbPath = tempDir.resolve("test_update_url.mxy");
+        String updateUrl = "https://example.com/threats.mxy";
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            try {
+                builder.add("1.2.3.4", Map.of("test", "value"))
+                       .setUpdateUrl(updateUrl)
+                       .save(dbPath);
+            } catch (UnsatisfiedLinkError e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false,
+                    "Native library doesn't support setUpdateUrl");
+            }
+        }
+        
+        try (Database db = Database.open(dbPath)) {
+            String retrievedUrl = db.getUpdateUrl();
+            assertEquals(updateUrl, retrievedUrl);
+        }
+    }
+    
+    @Test
+    void testSetSchemaUnknown() throws Exception {
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            try {
+                builder.setSchema("nonexistent_schema");
+                fail("Expected MatchyException for unknown schema");
+            } catch (UnsatisfiedLinkError e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false,
+                    "Native library doesn't support setSchema");
+            } catch (MatchyException ex) {
+                assertTrue(ex.getMessage().contains("Unknown schema") || 
+                           ex.getMessage().contains("Schema"));
+            }
+        }
+    }
+    
+    @Test
+    void testSetSchemaValid() throws Exception {
+        Path dbPath = tempDir.resolve("test_schema_valid.mxy");
+        
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            try {
+                builder.setSchema("threatdb");
+            } catch (UnsatisfiedLinkError e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false,
+                    "Native library doesn't support setSchema");
+            }
+            
+            builder.add("1.2.3.4", Map.of(
+                "threat_level", "high",
+                "category", "malware",
+                "source", "test"
+            ));
+            builder.save(dbPath);
+        }
+        
+        try (Database db = Database.open(dbPath)) {
+            QueryResult result = db.query("1.2.3.4");
+            assertTrue(result.isMatch());
+            assertEquals("high", result.getData().get("threat_level").getAsString());
+        }
+    }
+    
+    @Test
+    void testSetSchemaRejectsInvalid() throws Exception {
+        try (DatabaseBuilder builder = new DatabaseBuilder()) {
+            try {
+                builder.setSchema("threatdb");
+            } catch (UnsatisfiedLinkError e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false,
+                    "Native library doesn't support setSchema");
+            }
+            
+            try {
+                builder.add("1.2.3.4", Map.of(
+                    "threat_level", "invalid_level",
+                    "category", "malware"
+                ));
+                fail("Expected MatchyException for invalid schema data");
+            } catch (MatchyException ex) {
+                assertTrue(ex.getMessage().toLowerCase().contains("validation") ||
+                           ex.getMessage().toLowerCase().contains("schema"));
+            }
+        }
+    }
 }
